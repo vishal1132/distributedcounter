@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributed-likes-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: likes-distributed
+  replicas: 2
+  selector:
+    matchLabels:
+      application: likes-distributed-worker
+  template:
+    metadata:
+      labels:
+        application: likes-distributed
+    spec:
+      containers:
+        - name: master
+          imagePullPolicy: Never
+          image: distributed-likes:latest
+  template:
+    metadata:
+      labels:
+        application: likes-distributed-worker
+    spec:
+      containers:
+        - name: worker
+          imagePullPolicy: Never
+          image: distributed-likes:latest

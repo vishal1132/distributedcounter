@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributed-likes-deployment
+  labels:
+    app: 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: likes-distributed
+  template:
+    metadata:
+      labels:
+        workertype: master
+        application: likes-distributed
+    spec:
+      containers:
+        - name: master
+          imagePullPolicy: IfNotPresent
+          image: distributed-likes:latest
+          ports:
+          - containerPort: 8080
