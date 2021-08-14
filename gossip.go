@@ -35,22 +35,13 @@ func (s *server) MergeRemoteState(buf []byte, join bool) {
 		return
 	}
 	var temp = map[string]gset.Gset{}
-	json.Unmarshal(buf, &temp)
+	_ = json.Unmarshal(buf, &temp) // deliberately ignore error so linter doesn't complain.
 	// converge this temp into s.postLikes
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for key, value := range temp {
-		set, ok := s.postLikes[key]
-		if !ok {
-			g := gset.New()
-			for _, user := range value.GetSet() {
-				g.Append(user)
-			}
-			s.postLikes[key] = g
-		} else {
-			for _, user := range value.GetSet() {
-				set.Append(user)
-			}
+		for _, user := range value.GetSet() {
+			_ = s.postLikes.AddLike(key, user)
 		}
 	}
 }
