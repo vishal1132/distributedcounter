@@ -2,3 +2,5 @@ pre-commit:
   commands:
     run-linters:
       run: golangci-lint -v run
+    tests:
+      run: go test -v ./...

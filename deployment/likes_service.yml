@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: distributed-likes-service-cluster
+  # right now keeping the namespace default then will experiment on it later.
+  # namespace: distributed-counter
+spec:
+  selector:
+    application: likes-distributed
+  type: LoadBalancer
+  ports:
+  - port: 80
+    nodePort: 31001
+    protocol: TCP
+    targetPort: 8080
+    name: http-server

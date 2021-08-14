@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/hashicorp/memberlist"
 	"github.com/vishal1132/crdts/gset"
@@ -48,15 +47,15 @@ func (s *server) MergeRemoteState(buf []byte, join bool) {
 
 // listening to join and leave events.
 func (s *server) NotifyJoin(n *memberlist.Node) {
-	fmt.Printf("node joined: %s  address: %s \n", n.String(), n.Addr.String())
+	s.logger.Info().Msgf("node joined: %s  address: %s \n", n.String(), n.Addr.String())
 }
 
 func (s *server) NotifyLeave(n *memberlist.Node) {
-	fmt.Printf("node left: %s \n", n.String())
+	s.logger.Info().Msgf("node left: %s \n", n.String())
 }
 
 func (s *server) NotifyUpdate(n *memberlist.Node) {
-	fmt.Printf("node updated: %s \n", n.String())
+	s.logger.Info().Msgf("node updated: %s \n", n.String())
 }
 
 // implementing broadcast interface.
@@ -71,5 +70,5 @@ func (l *likeDomain) Message() []byte {
 
 func (l *likeDomain) Finished() {
 	// to notify the client that the broadcast is finished.
-	close(l.chanNotify)
+	// close(l.chanNotify)
 }

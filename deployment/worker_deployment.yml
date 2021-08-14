@@ -1,18 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: distributed-likes-deployment
+  name: distributed-likes-worker-deployment
   labels:
-    app: 
+        workertype: worker
+        application: likes-distributed
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       application: likes-distributed
   template:
     metadata:
       labels:
-        workertype: master
+        workertype: worker
         application: likes-distributed
     spec:
       containers:
@@ -21,3 +22,16 @@ spec:
           image: distributed-likes:latest
           ports:
           - containerPort: 8080
+          env:
+          - name: members
+            valueFrom: 
+              configMapKeyRef:
+                name: distributed-masterconfig
+                key: master_url
+          - name: membership_port
+            valueFrom: 
+              configMapKeyRef:
+                name: distributed-masterconfig
+                key: membership_port
+
+# args: ["--member", "worker service dns"]

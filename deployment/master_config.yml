@@ -1,0 +1,8 @@
+# distributed likes service configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: distributed-masterconfig
+data:
+  master_url: distributed-master-service
+  membership_port: "9293"

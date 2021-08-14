@@ -2,10 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/rs/zerolog"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -29,16 +28,17 @@ type server struct {
 	chanMsg chan []byte
 
 	broadcast *memberlist.TransmitLimitedQueue
+
+	logger zerolog.Logger
 }
 
 func main() {
 	s := &server{
 		postLikes: newinmemdb(),
 		chanMsg:   make(chan []byte),
+		logger:    zerolog.New(os.Stdout).With().Timestamp().Logger(),
 	}
-	members := flag.String("members", "", "atleast one known member of the cluster(if more, can be comma separated), if not specified, will initiate a cluster")
-	// port := flag.Int("port", 0, "specify the http port")
-	flag.Parse()
+	members := os.Getenv("members")
 
 	c := memberlist.DefaultLocalConfig()
 	{
@@ -52,16 +52,23 @@ func main() {
 	m, err := memberlist.Create(c)
 	if err != nil {
 		// this is the core of the application. So it makes sense to fatal the program with err here.
-		log.Fatalf("Can't create a memberlist got error %e", err)
+		s.logger.Fatal().Msgf("Can't create a memberlist got error %e", err)
 	}
 
-	if len(*members) > 0 {
-		_, _ = m.Join(strings.Split(*members, ","))
+	if len(members) > 0 {
+		// members are only going to be specified for worker nodes.
+		member := fmt.Sprintf("%s:%s", strings.Split(members, ",")[0], os.Getenv("membership_port"))
+		_, err := m.Join([]string{member})
+		if err != nil {
+			s.logger.Fatal().Msgf("can't join membership cluster while in worker mode got error %e", err)
+		}
 	}
 
 	// handle graceful shutdown for memberlist
 	// m.Leave()
 	// m.Shutdown()
+
+	go s.loopSM()
 
 	s.nodeName = c.Name
 	s.broadcast = &memberlist.TransmitLimitedQueue{
@@ -74,23 +81,50 @@ func main() {
 	port := 8080
 	l, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(port))
 	if err != nil {
-		log.Fatalf("Can't listen on port %d got error %e", port, err)
+		s.logger.Fatal().Msgf("Can't listen on port %d got error %e", port, err)
 	}
-	fmt.Println("http listening on ", l.Addr())
+
+	s.logger.Info().Msgf("Node %s listening on %s", s.nodeName, l.Addr().String())
 	r := http.NewServeMux()
 	{
-		r.HandleFunc("/like", s.handlePostLike)
-		r.HandleFunc("/likes", s.handleGetLikes)
+		r.HandleFunc("/", s.logMiddleware(s.handleHeartBeat))
+		r.HandleFunc("/like", s.logMiddleware(s.handlePostLike))
+		r.HandleFunc("/likes", s.logMiddleware(s.handleGetLikes))
 	}
 
-	srv := &http.Server{
-		Handler: r,
-	}
+	_ = http.Serve(l, r) // l.Close()
 
-	_ = srv.Serve(l)
+	// _ = srv.Serve(l)
 
 	// graceful shutdown for http server
 	// srv.Shutdown(context.Background())
+}
+
+func (s *server) handleHeartBeat(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	io.WriteString(w, "{\"node_name\":\""+s.nodeName+"\"}")
+}
+
+func (s *server) logMiddleware(next http.HandlerFunc) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.logger.Debug().Msgf("Request landed on %s %s %s %s", s.nodeName, r.RemoteAddr, r.Method, r.URL)
+		next.ServeHTTP(w, r)
+	}
+}
+
+func (s *server) loopSM() {
+	for i := range s.chanMsg {
+		s.logger.Debug().Msgf("Received message %s", string(i))
+		var l likeDomain
+		err := json.Unmarshal(i, &l)
+		if err != nil {
+			s.logger.Debug().Msgf("Error unmarshalling message %e", err)
+			continue
+		}
+		// if error is not nil add that to gset.
+		s.postLikes.AddLike(l.User, l.Post)
+	}
 }
 
 type likeDomain struct {
@@ -118,6 +152,7 @@ func (s *server) handlePostLike(w http.ResponseWriter, r *http.Request) {
 	_ = s.postLikes.AddLike(l.User, l.Post)
 
 	s.broadcast.QueueBroadcast(&l)
+	fmt.Fprintf(w, "Successfully wrote to %s", s.nodeName)
 }
 
 func (s *server) handleGetLikes(w http.ResponseWriter, r *http.Request) {
@@ -133,9 +168,9 @@ func (s *server) handleGetLikes(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if len(detail) > 0 {
 		set, _ := s.postLikes.GetLikes(post[0])
-		fmt.Fprint(w, strings.Join(set, ","))
+		fmt.Fprintf(w, "Server %s returned %s", s.nodeName, strings.Join(set, ","))
 		return
 	}
 	likes, _ := s.postLikes.GetLikesCount(post[0])
-	fmt.Fprintf(w, "Likes: %d", likes)
+	fmt.Fprintf(w, "Server %s returned Likes: %d", s.nodeName, likes)
 }

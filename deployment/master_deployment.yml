@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: distributed-likes-deployment
+  name: distributed-likes-master-deployment
   labels:
         workertype: master
         application: likes-distributed
