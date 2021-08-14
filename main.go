@@ -103,7 +103,7 @@ func main() {
 func (s *server) handleHeartBeat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, "{\"node_name\":\""+s.nodeName+"\"}")
+	_, _ = io.WriteString(w, "{\"node_name\":\""+s.nodeName+"\"}")
 }
 
 func (s *server) logMiddleware(next http.HandlerFunc) func(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +123,7 @@ func (s *server) loopSM() {
 			continue
 		}
 		// if error is not nil add that to gset.
-		s.postLikes.AddLike(l.User, l.Post)
+		_ = s.postLikes.AddLike(l.User, l.Post)
 	}
 }
 
